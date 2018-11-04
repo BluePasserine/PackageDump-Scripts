@@ -1,5 +1,5 @@
 # PackageDump-Scripts
-Contains a PowerShell script for locating NuGet and NPM packages and calling the PackageDump API.
+A PowerShell script for locating NuGet and NPM packages and calling the PackageDump API.
 
 ## Usage
 ``` powershell
@@ -13,7 +13,7 @@ Invoke-PackageDump -Folder $folder -Group $group -Ignore $ignore -ApiKey $apiKey
 
 ### Parameters
 * Folder - The root folder to recursively look through.
-* Group - Link together a number of different analysis reports for future comparison. Create one Group for each application or codebase, it's really up to you.
+* Group - A group is a container of analysis reports. Create one Group for each application or codebase, it's really up to you.
 * Ignore - A wildcard filter, typically of your own package prefix, to ignore in the report. For example BluePasserine* will ignore any packages that start with BluePasserine.
 * ApiKey - Your API key from https://www.packagedump.com/Account/Licensing
 
