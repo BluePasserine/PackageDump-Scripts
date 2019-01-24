@@ -1,5 +1,4 @@
-﻿
-Function Invoke-PackageDump {
+﻿Function Invoke-PackageDump {
 <#
 .SYNOPSIS
   Iterate all NuGet and NPM packages under a local folder and call the PackageDump API.
@@ -16,6 +15,9 @@ Function Invoke-PackageDump {
 .PARAMETER Ignore
    A wildcard filter, typically of your own package prefix, to ignore in the report. For example BluePasserine* will ignore any packages.
     
+.PARAMETER PackageManagers
+   An optional list of package managers to target: @("nuget", "npm")
+    
 .PARAMETER ApiKey
   Your API key from https://www.packagedump.com/Account/Licensing
   
@@ -25,14 +27,19 @@ Function Invoke-PackageDump {
 Param ([string]$Folder,
        [string]$Group,
        [string]$Ignore,
-       [string]$ApiKey)
+       [string]$ApiKey,
+       [string[]]$PackageManagers = @("nuget", "npm"))
 
   $name = Get-Date -Format o | ForEach { $_ -Replace ":", "." }
   
   $requestObj = @{ group = "$Group"; name = "$name"; projects = @() }
   
-  Get-ChildItem -Path $Folder -Include *.csproj -Recurse -File -ErrorAction SilentlyContinue | 
-    ForEach-Object {
+  If ($PackageManagers.Contains("nuget")){
+    Write-Host "Looking for NuGet Packages..."
+
+    $packageManager = "NuGet"
+    Get-ChildItem -Path $Folder -Include *.csproj -Recurse -File -ErrorAction SilentlyContinue | 
+      ForEach-Object {
       $packageManager = "NuGet"
       Write-Verbose "Found csproj $($_.FullName)"
       
@@ -68,9 +75,11 @@ Param ([string]$Folder,
     }
   }
   
-  $packageManager = "NPM"
-  Get-ChildItem -Path $Folder -Include "package.json" -Recurse -Exclude "node_modules" -File -ErrorAction SilentlyContinue | 
-    ForEach-Object {
+  If ($PackageManagers.Contains("npm")){
+    Write-Host "Looking for NPM Packages..."
+    $packageManager = "NPM"
+    Get-ChildItem -Path $Folder -Include "package.json" -Recurse -Exclude "node_modules" -File -ErrorAction SilentlyContinue | 
+      ForEach-Object {
       Write-Verbose "Found package.json $($_.FullName)"
       
       $projectObj = @{ name = "$projectName"; packages = @() }
@@ -94,26 +103,28 @@ Param ([string]$Folder,
         $requestObj.projects += $projectObj
       }
     }
-
-$body = $requestObj | ConvertTo-Json -Depth 4
-  
-If ($WhatIf -eq $false) {
-  [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-  $response = Invoke-WebRequest -UseBasicParsing 'https://api.packagedump.com/api/packages' -Body $body -Method "POST" -Headers @{ "x-bppd-a" = "$ApiKey" } -ErrorAction Stop
-    
-  If ($response.StatusCode -ne 201){
-    Write-Error "An error occured: $($response.Content)"
-    Exit -1
-  } Else {
-    $responseObj = $response.Content | ConvertFrom-Json
-    
-    Write-Host "Analysis Request Created"
-    Write-Host "------------------------"
-    Write-Host "Id: $($responseObj.AnalysisId)"
-    Write-Host "ReportUrl: $($responseObj.ReportUrl)"
-    Write-Host "EmbedUrl: $($responseObj.EmbedUrl)"
   }
-} Else {
-  Write-Host "The following JSON would be sent to the PackageDump API"
-  Write-Host $body
+
+  $body = $requestObj | ConvertTo-Json -Depth 4
+    
+  If ($WhatIf -eq $false) {
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+    $response = Invoke-WebRequest -UseBasicParsing 'https://api.packagedump.com/api/packages' -Body $body -Method "POST" -Headers @{ "x-bppd-a" = "$ApiKey" } -ErrorAction Stop
+      
+    If ($response.StatusCode -ne 201){
+      Write-Error "An error occured: $($response.Content)"
+      Exit -1
+    } Else {
+      $responseObj = $response.Content | ConvertFrom-Json
+      
+      Write-Host "Analysis Request Created"
+      Write-Host "------------------------"
+      Write-Host "Id: $($responseObj.AnalysisId)"
+      Write-Host "ReportUrl: $($responseObj.ReportUrl)"
+      Write-Host "EmbedUrl: $($responseObj.EmbedUrl)"
+    }
+  } Else {
+    Write-Host "The following JSON would be sent to the PackageDump API"
+    Write-Host $body
+  }
 }
