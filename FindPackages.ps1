@@ -1,4 +1,6 @@
-﻿Function Invoke-PackageDump {
+﻿
+Function Invoke-PackageDump {
+  [CmdletBinding(SupportsShouldProcess)]
 <#
 .SYNOPSIS
   Iterate all NuGet and NPM packages under a local folder and call the PackageDump API.
@@ -15,12 +17,15 @@
 .PARAMETER Ignore
    A wildcard filter, typically of your own package prefix, to ignore in the report. For example BluePasserine* will ignore any packages.
     
-.PARAMETER PackageManagers
-   An optional list of package managers to target: @("nuget", "npm")
-    
 .PARAMETER ApiKey
   Your API key from https://www.packagedump.com/Account/Licensing
   
+.PARAMETER Path
+  The optional path to the HTML output file to write, e.g. C:\Work\output.html
+  
+.PARAMETER PackageManagers
+   An optional list of package managers to target: @("nuget", "npm")
+    
 .PARAMETER WhatIf
   Collect all packages and output the JSON for review, but do not call the API
 #>
@@ -28,6 +33,7 @@ Param ([string]$Folder,
        [string]$Group,
        [string]$Ignore,
        [string]$ApiKey,
+       [string]$Path,
        [string[]]$PackageManagers = @("nuget", "npm"))
 
   $name = Get-Date -Format o | ForEach { $_ -Replace ":", "." }
@@ -36,16 +42,14 @@ Param ([string]$Folder,
   
   If ($PackageManagers.Contains("nuget")){
     Write-Host "Looking for NuGet Packages..."
-
     $packageManager = "NuGet"
+
     Get-ChildItem -Path $Folder -Include *.csproj -Recurse -File -ErrorAction SilentlyContinue | 
       ForEach-Object {
-      $packageManager = "NuGet"
       Write-Verbose "Found csproj $($_.FullName)"
       
-      $projectObj = @{ name = "$projectName"; packages = @() }
-  
       $projectName = $_.BaseName
+      $projectObj = @{ name = "$projectName"; packages = @() }
       $directoryName = Split-Path $_.FullName
       $packagesConfig = Join-Path $directoryName "packages.config"
   
@@ -78,13 +82,13 @@ Param ([string]$Folder,
   If ($PackageManagers.Contains("npm")){
     Write-Host "Looking for NPM Packages..."
     $packageManager = "NPM"
+
     Get-ChildItem -Path $Folder -Include "package.json" -Recurse -Exclude "node_modules" -File -ErrorAction SilentlyContinue | 
       ForEach-Object {
       Write-Verbose "Found package.json $($_.FullName)"
       
-      $projectObj = @{ name = "$projectName"; packages = @() }
-  
       $projectName = $_.BaseName
+      $projectObj = @{ name = "$projectName"; packages = @() }
       $directoryName = Split-Path $_.FullName
 
       $packagesList = @()
@@ -107,7 +111,7 @@ Param ([string]$Folder,
 
   $body = $requestObj | ConvertTo-Json -Depth 4
     
-  If ($WhatIf -eq $false) {
+  If ($PSCmdlet.ShouldProcess($body)) {
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
     $response = Invoke-WebRequest -UseBasicParsing 'https://api.packagedump.com/api/packages' -Body $body -Method "POST" -Headers @{ "x-bppd-a" = "$ApiKey" } -ErrorAction Stop
       
@@ -122,9 +126,30 @@ Param ([string]$Folder,
       Write-Host "Id: $($responseObj.AnalysisId)"
       Write-Host "ReportUrl: $($responseObj.ReportUrl)"
       Write-Host "EmbedUrl: $($responseObj.EmbedUrl)"
+      
+      $outputHtml = '<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>PackageDump - Analysis Report</title>
+  <style type="text/css">
+  body { 
+    margin: 0;
+  }
+  iframe {
+    display: block;
+    border: none;
+    height: 100vh;
+    width: 100vw;
+  }
+  </style>
+</head>
+<body>
+  <iframe src="$($responseObj.EmbedUrl)"></iframe>
+</body>'
+      If ($Path){
+        Out-File -FilePath $Path -InputObject $outputHtml -Encoding UTF8
+      }
     }
-  } Else {
-    Write-Host "The following JSON would be sent to the PackageDump API"
-    Write-Host $body
   }
 }
