@@ -1,0 +1,16 @@
+trigger:
+- master
+
+stages:
+  - stage: RunSOOS
+    pool:
+      vmImage: ubuntu-latest
+
+      steps:
+      - task: SOOS-Security-Analysis@0
+        displayName: 'SOOS SCA'
+        inputs:
+          apiKey: 'ZjZkNzg2YzYtZGJjOC00MWViLTk5Y2UtZGNhMGQxNWJkZWIx'
+          clientId: '5ae371h0d'
+          projectName: '$(projectName)'
+          buildVersion: '$(buildVersion)'
