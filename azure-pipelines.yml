@@ -5,7 +5,8 @@ stages:
   - stage: RunSOOS
     pool:
       vmImage: ubuntu-latest
-
+      jobs:
+      - job: Build_DotNET
       steps:
       - task: SOOS-Security-Analysis@0
         displayName: 'SOOS SCA'
